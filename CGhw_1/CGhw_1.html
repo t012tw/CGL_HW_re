@@ -1,0 +1,199 @@
+<html>
+<body style = "overflow: hidden;">
+
+<div id="info" style = "position: absolute;top: 3%;width: 100%;padding: 10px;text-align: center;color: #ffff00">
+  <button id="toggle" style="width:20%" value = 'Start'>Start</button>
+  <button id="type" style="width:20%">Second hand</button>
+  <button id="switch" style="width:20%">Quartz Watches</button>
+</div>
+</body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r78/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+</html>
+
+<script>
+var scene, renderer, camera;
+var controls;
+var mesh, circle, cylinder,cone,dot,mix,turn = false,turn2 = false;
+var sec = 0.0001,secNow = 0;
+var startTime,tmp = 0;
+var clock = new THREE.Clock();
+var pai = Math.PI/3;
+var p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12
+
+init();
+animate();
+
+$("#toggle").click(function() {
+
+	if($('#toggle').html() === 'Start') $('#toggle').html('Stop');
+  else $('#toggle').html('Start');
+  turn = !turn;
+  if (turn) startTime = clock.getElapsedTime();
+  else secNow = sec;
+});
+
+$("#type").click(function() {
+
+  if($('#type').html() === 'Second hand') $('#type').html('Sector');
+  else $('#type').html('Second hand');
+	mesh.visible = !mesh.visible;
+  mix.visible = !mix.visible;
+});
+
+$("#switch").click(function() {
+	
+  if($('#switch').html() === 'Quartz Watches') $('#switch').html('Smooth');
+  else $('#switch').html('Quartz Watches');
+	turn2 = !turn2;
+  if (turn2) animate2();
+  else animate();
+});
+
+function init() {
+  scene = new THREE.Scene();
+  renderer = new THREE.WebGLRenderer();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0xffd8e8);
+  document.body.appendChild(renderer.domElement);
+  
+  /**************************  clock face  **************************/
+  var geometry_point = new THREE.BoxGeometry( 6, 6, 12);
+  var material_point = new THREE.MeshBasicMaterial({color: 0xffffff});
+  
+  p1 = new THREE.Mesh(geometry_point, material_point);
+  p2 = new THREE.Mesh(geometry_point, material_point);
+  p3 = new THREE.Mesh(geometry_point, material_point);
+  p4 = new THREE.Mesh(geometry_point, material_point);
+  p5 = new THREE.Mesh(geometry_point, material_point);
+  p6 = new THREE.Mesh(geometry_point, material_point);
+  p7 = new THREE.Mesh(geometry_point, material_point);
+  p8 = new THREE.Mesh(geometry_point, material_point);
+  p9 = new THREE.Mesh(geometry_point, material_point);
+  p10 = new THREE.Mesh(geometry_point, material_point);
+  p11 = new THREE.Mesh(geometry_point, material_point);
+  p12 = new THREE.Mesh(geometry_point, material_point);
+  p1.position.z -= 102.5;
+  p3.position.z += 102.5;
+  p2.rotation.y += Math.PI/2;
+  p2.position.x += 102.5;
+  p4.rotation.y += Math.PI/2;
+  p4.position.x -= 102.5;
+  p5.rotation.y -= Math.PI/6;
+  p5.position.x += 102.5*Math.cos(Math.PI/3);
+  p5.position.z -= 102.5*Math.sin(Math.PI/3);
+  p6.rotation.y -= Math.PI/3;
+  p6.position.x += 102.5*Math.cos(Math.PI/6);
+  p6.position.z -= 102.5*Math.sin(Math.PI/6);
+  p7.rotation.y += Math.PI/3;
+  p7.position.x += 102.5*Math.cos(Math.PI/6);
+  p7.position.z += 102.5*Math.sin(Math.PI/6);
+  p8.rotation.y += Math.PI/6;
+  p8.position.x += 102.5*Math.cos(Math.PI/3);
+  p8.position.z += 102.5*Math.sin(Math.PI/3);
+  p9.rotation.y -= Math.PI/6;
+  p9.position.x -= 102.5*Math.cos(Math.PI/3);
+  p9.position.z += 102.5*Math.sin(Math.PI/3);
+  p10.rotation.y -= Math.PI/3;
+  p10.position.x -= 102.5*Math.cos(Math.PI/6);
+  p10.position.z += 102.5*Math.sin(Math.PI/6);
+  p11.rotation.y += Math.PI/3;
+  p11.position.x -= 102.5*Math.cos(Math.PI/6);
+  p11.position.z -= 102.5*Math.sin(Math.PI/6);
+  p12.rotation.y += Math.PI/6;
+  p12.position.x -= 102.5*Math.cos(Math.PI/3);
+  p12.position.z -= 102.5*Math.sin(Math.PI/3);
+  scene.add(p1);
+  scene.add(p2);
+  scene.add(p3);
+  scene.add(p4);
+  scene.add(p5);
+  scene.add(p6);
+  scene.add(p7);
+  scene.add(p8);
+  scene.add(p9);
+  scene.add(p10);
+  scene.add(p11);
+  scene.add(p12);
+  
+  var geometry_circle = new THREE.CircleGeometry( 45, 32);
+  var material_circle = new THREE.MeshBasicMaterial( { color: 0xffc4da } );
+  circle = new THREE.Mesh(geometry_circle, material_circle);
+  circle.rotation.x -= Math.PI/2;
+  scene.add(circle);
+  /**************************  clock face  **************************/
+  
+  var geometry = new THREE.TorusGeometry( 70, 25, 40, 200, sec);//smooth shape
+  var material = new THREE.MeshBasicMaterial( { color: 0xfc9fc2 } );
+  mesh = new THREE.Mesh(geometry, material);
+  mesh.rotation.x += Math.PI/2;
+  mesh.rotation.z -= Math.PI/2;
+  scene.add(mesh);
+  
+  var material_mix = new THREE.MeshBasicMaterial({color: 0xfc9fc2});//second hand shape
+  var geometry_Cylinder = new THREE.CylinderGeometry( 3, 3, 60, 40 );
+  cylinder = new THREE.Mesh(geometry_Cylinder, material_mix);
+  cylinder.position.y -= 30;
+  var geometry_cone = new THREE.ConeGeometry( 3, 36, 32 );
+  cone = new THREE.Mesh(geometry_cone, material_mix);
+  cone.position.y -= 78;
+  cone.rotation.x += Math.PI;
+  var geometry_dot = new THREE.CylinderGeometry( 3, 3, 3, 40 );
+  dot = new THREE.Mesh(geometry_dot, material_mix);
+  dot.rotation.x -= Math.PI/2;
+  mix = new THREE.Object3D();
+  mix.add(cylinder);
+  mix.add(cone);
+  mix.add(dot);
+  mix.rotation.x += Math.PI/2;
+  scene.add(mix);
+  mix.visible = !mix.visible;
+  
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
+  camera.position.set(0, 300, 0);
+  controls = new THREE.OrbitControls(camera,renderer.domElement);
+  
+  window.addEventListener('resize', onWindowResize, false);
+}
+
+function animate() { //smooth
+  controls.update();
+  if (turn){
+  	var move = clock.getElapsedTime() - startTime;
+    if(tmp) {
+    	sec = (secNow - move)%60/(-10)+tmp;
+    }else {
+    	sec = (secNow - move)%60/(-10);
+    }
+    mix.rotation.z = sec*pai;
+  }
+  else{
+  	tmp = sec;
+  }
+  mesh.geometry.dispose();//delete the geometry ,so important
+  mesh.geometry = new THREE.TorusGeometry( 70, 25, 40, 200, sec*pai);
+  if(turn2) return;
+  else requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+}
+
+function animate2() { //Quartz Watches
+  controls.update();
+  if (turn){
+    sec += Math.PI/30;
+    mix.rotation.z += Math.PI/30;
+  }
+  mesh.geometry.dispose();//delete the geometry ,so important
+  mesh.geometry = new THREE.TorusGeometry( 70, 25, 40, 200, sec);
+  if(turn2) setTimeout(animate2, 1000);
+  else return;
+  renderer.render(scene, camera);
+}
+
+function onWindowResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+</script>

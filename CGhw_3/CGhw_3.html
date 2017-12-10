@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+<style>
+body {
+  overflow: hidden
+}
+
+</style>
+</head>
+
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/84/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script src="https://threejs.org/build/three.js"></script>
+<script src="https://rawgit.com/mrdoob/three.js/master/examples/js/loaders/MTLLoader.js"></script>
+<script src="https://rawgit.com/mrdoob/three.js/master/examples/js/loaders/OBJLoader.js"></script>
+<script>
+
+var renderer, camera1, camera2, controls, scene, cube,car,pillar,obstacle;
+var keyboard = new KeyboardState();
+var BMW_M3;
+var clock = new THREE.Clock();
+var pos = new THREE.Vector3(0,0,0);
+var angle = 0,speed = 0;
+var speedway,wall,wall2,lane,lane2,lane3,lane4;
+var obsM;
+var obsR = [],obs = [];
+var WW = window.innerWidth;
+var HH = window.innerHeight;
+
+init();
+animate();
+
+function init() {
+
+  renderer = new THREE.WebGLRenderer();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x75b0ff);
+  renderer.autoClear = false;
+  document.body.appendChild(renderer.domElement);
+  camera1 = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
+  camera1.position.set( 0, 300, 0);
+  camera2 = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
+  controls = new THREE.OrbitControls(camera1, renderer.domElement);
+  scene = new THREE.Scene();
+  ///////////////////////////////////////////////////////////////////////////////////
+  
+  speedway = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.MeshLambertMaterial({
+    map: new THREE.TextureLoader().load('https://i.imgur.com/hMya3GK.png')
+  }));
+  speedway.rotation.x = -Math.PI/2;
+  var obsM = new THREE.MeshBasicMaterial({
+    map: new THREE.TextureLoader().load('https://i.imgur.com/p9jFCdd.jpg'),
+  });
+  obsR[0] = 8;
+  obs[0] = new THREE.Mesh(new THREE.CylinderGeometry(obsR[0], obsR[0], 30, 20), obsM.clone());
+  obs[0].position.set(50, 15, 20);
+  obsR[1] = 6;
+  obs[1] = new THREE.Mesh(new THREE.CylinderGeometry(obsR[1], obsR[1], 30, 20), obsM.clone());
+  obs[1].position.set(-20,15, 60);
+  obsR[2] = 10;
+  obs[2] = new THREE.Mesh(new THREE.CylinderGeometry(obsR[2], obsR[2], 30, 20), obsM.clone());
+  obs[2].position.set(-70, 15, -50);
+  scene.add(speedway,obs[0],obs[1],obs[2]);
+  ///////////////////////////////////////////////////////////////////////////////////
+  var directionalLight = new THREE.DirectionalLight(0xffffff);
+  directionalLight.position.set(0, 1, 1).normalize();
+  scene.add(directionalLight);  
+  light = new THREE.HemisphereLight( 0xffffff, 0x080820, 1 );
+  light.position.set(150,80,80);
+  scene.add( light ); 	
+  ///////////////////////////////////////////////////////////////////////////////////
+  
+    var onProgress = function(xhr) {
+    if (xhr.lengthComputable) {
+      var percentComplete = xhr.loaded / xhr.total * 100;
+      console.log(Math.round(percentComplete, 2) + '% downloaded');
+    }
+  };
+
+  var onError = function(xhr) {};
+
+  //THREE.Loader.Handlers.add(/\.dds$/i, new THREE.DDSLoader());
+
+  var mtlLoader = new THREE.MTLLoader();
+	mtlLoader.setPath('Model/');
+ 	mtlLoader.load('BMW_M3_GTR.mtl', function(materials) {
+	
+    materials.preload();
+
+    var objLoader = new THREE.OBJLoader();
+    objLoader.setMaterials(materials);
+    objLoader.setPath('Model/');
+    objLoader.load('BMW_M3_GTR.obj', function(object) {
+			
+			BMW_M3 =  unitize (object, 200);
+			BMW_M3.rotation.y -= Math.PI/4;
+			scene.add (BMW_M3);
+							
+			//scene.add (new THREE.BoxHelper (BMW_M3));
+
+
+			//////// MATERIAL ADJUSTMENT for porsche ///////////////
+			// transparent window: double-side fix
+			object.traverse (
+				function(mesh) {
+					if (mesh instanceof THREE.Mesh) {
+						mesh.material.side = THREE.DoubleSide;
+					}
+				});
+
+
+    }, onProgress, onError);
+
+  });
+  
+  ///////////////////////////////////////////////////////////////////////////////////
+  var gridXZ = new THREE.GridHelper(200, 20, 'red', 'white');
+  //scene.add(gridXZ);
+
+  window.addEventListener('resize', onWindowResize, false);
+}
+
+
+function animate() {
+
+  update();
+  keyboard.update();
+  
+  var dt = clock.getDelta();
+	
+	var dir = new THREE.Vector3(1,0,0);
+	
+	//dir.multiplyScalar (dt*speed);
+	//dir.applyAxisAngle (new THREE.Vector3(0,1,0), angle);
+	dir.multiplyScalar (dt*speed).applyAxisAngle (new THREE.Vector3(0,1,0), angle);
+	pos.add (dir); 	
+
+	
+	if (BMW_M3 != undefined) { 
+		BMW_M3.scale.set (0.2,0.2,0.2);
+		BMW_M3.position.set (pos.x, pos.y, pos.z);
+		BMW_M3.rotation.y = angle;
+		camera2.position.copy(BMW_M3.localToWorld(new THREE.Vector3(-500, 250, 0)));
+		camera2.lookAt(BMW_M3.localToWorld(new THREE.Vector3(-50, 0, 0)));
+	}
+	
+  /*if(isCrash()){
+  	cube.material.color.setHex(0xfc2d2d); 
+  }else{
+  	cube.material.color.setHex(0x426ef4);
+  }*/
+  
+  requestAnimationFrame(animate);  
+  
+  if( WW != window.innerWidth || HH != window.innerHeight ){
+	WW = window.innerWidth;
+	HH = window.innerHeight;
+	renderer.setSize( WW, HH);
+  }
+  
+  renderer.setViewport( 0, 0, WW, HH );
+  renderer.clear();   
+  
+  camera1.aspect = (WW/2) / HH;
+  camera1.updateProjectionMatrix();
+  renderer.setViewport(1,1,0.5*WW -2 , HH-2);
+  renderer.render(scene, camera1);
+  
+  camera2.aspect = (WW/2) / HH;
+  camera2.updateProjectionMatrix();
+  renderer.setViewport(0.5*WW + 1 , 1, 0.5*WW - 2, HH -2);
+  renderer.render(scene, camera2);
+
+
+}
+
+function myclamp(x,lo,hi)
+{
+	if (x < lo) return lo;
+	if (x > hi) return hi;
+	return x;
+}
+
+function update()
+{
+	controls.update();
+	keyboard.update();         
+	if ( keyboard.pressed("A") ) 
+		angle += 0.01;               
+	if ( keyboard.pressed("D") )
+		angle -= 0.01;               
+	if ( keyboard.pressed("W") )  
+		speed += 0.8;        
+	if ( keyboard.pressed("S") )  
+		speed -= 0.8;    
+	
+	speed = myclamp (speed, -20.0, 100.0);
+}
+
+/*function isCrash() {
+
+	if((car.position.x >= -15 && car.position.x <= 15) && car.position.z <= 0){
+  	if(car.position.z + 10 >= -20) return true;
+    else return false;
+  }
+  if((car.position.x >= -15 && car.position.x <= 15) && car.position.z >= 0){
+  	if(car.position.z - 10 <= 20){
+      return true;
+    }
+    else return false;
+  }
+  if((car.position.z >= -10 && car.position.z <= 10) && car.position.x >= 0){
+  	if(car.position.x - 15 <= 20) return true;
+    else return false;
+  }
+  if((car.position.z >= -10 && car.position.z <= 10) && car.position.x <= 0){
+  	if(car.position.x + 15 >= -20) return true;
+    else return false;
+  }
+
+	if(car.position.x > 0) x = car.position.x - 15;
+  else x = car.position.x + 15;
+  if(car.position.z > 0) z = car.position.z - 10;
+  else z = car.position.z + 10;
+	sum = Math.sqrt(Math.pow(x,2)+Math.pow(z,2));
+	if(sum  <= 20) return true;
+  else return false;
+}*/
+
+function unitize (object, targetSize) {  
+	
+	// find bounding box of 'object'
+	var box3 = new THREE.Box3();
+	box3.setFromObject (object);
+	var size = new THREE.Vector3();
+	size.subVectors (box3.max, box3.min);
+	var center = new THREE.Vector3();
+	center.addVectors(box3.max, box3.min).multiplyScalar (0.5);
+	
+	console.log ('center: ' + center.x + ', '+center.y + ', '+center.z );
+	console.log ('size: ' + size.x + ', ' +  size.y + ', '+size.z );
+	
+	// uniform scaling according to objSize
+	var objSize = findMax (size);
+	var scaleSet = targetSize/objSize;
+				
+	var theObject =  new THREE.Object3D();
+	theObject.add (object);
+	object.scale.set (scaleSet, scaleSet, scaleSet);
+	object.position.set (-center.x*scaleSet, -center.y*scaleSet + size.y/2*scaleSet, -center.z*scaleSet);
+	
+	return theObject;
+	
+	
+	// helper function
+	function findMax(v) {
+		if (v.x > v.y) {
+			return v.x > v.z ? v.x : v.z;
+		} else { // v.y > v.x
+			return v.y > v.z ? v.y : v.z;
+		} 
+	}
+			
+}
+
+function onWindowResize() {
+
+  var width = window.innerWidth;
+  var height = window.innerHeight;
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(width, height);
+}
+
+
+</script>
+</body>
+
+</html>

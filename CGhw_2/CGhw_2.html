@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+<style>
+body {
+  overflow: hidden
+}
+#title{
+  position: absolute;
+  top: 1%;
+}
+#info {
+  position: absolute;
+  top: 3%;
+  width: 100%; 
+  padding: 10px;
+  text-align: center;
+  color: #ffff00
+}
+
+</style>
+</head>
+
+<body>
+<p id = title >Tank <br>Use WASD and IJKL and space to control</p>
+<div id="info">
+ <button id="toggle" style="width:20%" value = 'switch'>Switch camera</button>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/84/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script>
+class  Cannonball{
+  constructor () {
+    this.vel = new THREE.Vector3();
+    this.force = new THREE.Vector3(0,-5,0);
+    this.rebirth();
+  }
+  update (dt) {
+    if (this.pos.y > 0) {
+      this.vel.add (this.force.clone().multiplyScalar(dt));
+      this.pos.add (this.vel.clone().multiplyScalar(dt)); 
+    }else if (this.pos.y < 0){
+        this.pos.y = 0;
+      }
+  }
+  setPos(loc) {
+  	this.pos = loc;
+  }
+  getPos() {
+  	return this.pos;
+  }
+  rebirth(x,y,z) {
+  	this.stopped = false;
+  	this.vel.set (x,y,z).setLength(50);
+  }
+}
+var renderer, camera, controls, scene;
+var base_ob = new THREE.Object3D();
+var fort_ob = new THREE.Object3D();
+var barrel1_ob = new THREE.Object3D();
+var barrel2_ob = new THREE.Object3D();
+var angle_base = 0, angle_fort = 0, angle_barrel1 = 0;
+var keyboard = new KeyboardState();
+var balls, ballMeshes;
+var light;
+var toggle,fall;
+var target;
+init();
+animate();
+newTarget();
+
+function newTarget(){
+	var geometry = new THREE.CylinderGeometry(10, 10, 10, 32 )
+  var material = new THREE.MeshPhongMaterial( { color: 0xff4c4c, specular: 0xb5d5ff, shininess: 100, morphTargets: true, vertexColors: THREE.FaceColors, flatShading: true } );
+  target = new THREE.Mesh( geometry.clone(), material.clone() );
+  target.position.set(-80,30,Math.random() * 201 - 100);
+  target.rotation.z += Math.PI/2;
+  scene.add( target );
+}
+
+function isCrashed(cannonball) {//判斷有無碰撞
+	if(((cannonball.getWorldPosition().x >= target.position.x - 5) && (cannonball.getWorldPosition().x <= target.position.x + 5))&&
+  ((cannonball.getWorldPosition().y >= target.position.y - 7) && (cannonball.getWorldPosition().y <= target.position.y + 7))&&
+  ((cannonball.getWorldPosition().z >= target.position.z - 7) && (cannonball.getWorldPosition().z <= target.position.z + 7)))return true;
+  else return false;
+}
+
+$("#toggle").click(function() {
+	camera.position.copy(fort_ob.localToWorld(new THREE.Vector3(80, 50, 0)));
+	toggle = !toggle;
+});
+
+function init() {
+
+  renderer = new THREE.WebGLRenderer();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x888888);
+  document.body.appendChild(renderer.domElement);
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  toggle = false;
+  scene = new THREE.Scene();
+  ////////////////////////////////////////////////////////////////////////////////////////// 
+  var material = new THREE.MeshPhongMaterial( { color: 0xb5d5ff, specular: 0xb5d5ff, shininess: 100, morphTargets: true, vertexColors: THREE.FaceColors, flatShading: true } );
+  var base = new THREE.Mesh(new THREE.BoxGeometry(40, 10, 20), material);
+  var fort = new THREE.Mesh(new THREE.CylinderGeometry(10, 10, 10, 32 ), material);
+  var barrel1 = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 10, 32 ), material);
+  var barrel2 = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 10, 32 ), material);
+  
+  base_ob.add(base);
+  fort_ob.add(fort);
+  barrel1_ob.add(barrel1);
+  barrel2_ob.add(barrel2);
+  
+  base_ob.add(fort_ob);
+  fort_ob.add(barrel1_ob);
+  barrel1_ob.add(barrel2_ob);
+  
+  base_ob.position.y += 5;
+  fort_ob.position.x 
+  -= 10;
+  fort_ob.position.y += 10;
+  barrel1_ob.position.x -= 10;
+  barrel1_ob.rotation.x += Math.PI/2;
+  barrel2_ob.position.x -= 5;
+  barrel2_ob.rotation.z += Math.PI/2;
+	scene.add(base_ob);
+  
+  var gridXZ = new THREE.GridHelper(200, 20, 'red', 'white');
+  scene.add(gridXZ);
+  ////////////////////////////////////////////////////////////////////////////////////////// 
+  light = new THREE.HemisphereLight( 0xffffff, 0x080820, 1 );
+	scene.add( light );
+  //////////////////////////////////////////////////////////////////////////////////////////  
+  ballMesh = new THREE.Mesh(new THREE.SphereGeometry(1.5, 20, 20), new THREE.MeshNormalMaterial());
+  balls = [];
+  ballMeshes = [];  
+  
+  window.addEventListener('resize', onWindowResize, false);
+}
+
+function animate() {
+
+  keyboard.update();
+  
+  if(toggle){//切換相機視角
+  	controls.update();
+  }else{
+    camera.position.copy(fort_ob.localToWorld(new THREE.Vector3(80, 50, 0)));
+    camera.lookAt(barrel2_ob.localToWorld(new THREE.Vector3(0, 30, 0)));
+  }
+  
+  if (keyboard.down ('space')) {//新增一砲彈並給定初始位置和發射向量
+    let ball = new Cannonball();
+    balls.push(ball);
+    let thisMesh = ballMesh.clone();
+    ballMeshes.push (thisMesh);
+    scene.add (thisMesh)
+    ball.setPos(barrel2_ob.localToWorld(new THREE.Vector3(0, 5, 0)));
+    let x = barrel2_ob.getWorldPosition().x - barrel1_ob.getWorldPosition().x;
+    let y = barrel2_ob.getWorldPosition().y - barrel1_ob.getWorldPosition().y;
+    let z = barrel2_ob.getWorldPosition().z - barrel1_ob.getWorldPosition().z;
+    ball.rebirth(x,y,z);
+  }else{//砲彈隨設定的運動方式運動
+  	balls.forEach (function (ball) {
+    	ball.update (0.1);   
+  	})
+  }
+  
+  for (let i = 0; i < balls.length; i++) {//更新砲彈的位置若打中target則fall為true
+  	ballMeshes[i].position.copy (balls[i].getPos());
+    if(isCrashed(ballMeshes[i])){
+    	fall = true;
+    }
+  }
+  
+  if(fall === true){//打中進行墜落動作
+  	target.position.y -= 0.8;
+    target.rotation.z += Math.PI/60;
+    if(target.rotation.z > Math.PI) target.rotation.z = Math.PI;
+    if(target.position.y < 0) {
+      target.position.y = 0;
+      newTarget();
+      fall = false;
+    }
+  }
+  
+  if (keyboard.pressed ('A') && keyboard.pressed ('S')) {
+  	angle_base -= 0.02;
+  } else if (keyboard.pressed ('A')) {
+  	angle_base += 0.02;
+  }
+  if (keyboard.pressed ('D') && keyboard.pressed ('S')) {
+  	angle_base += 0.02;
+  } else if (keyboard.pressed ('D')) {
+  	angle_base -= 0.02;
+  }
+  if (keyboard.pressed ('J')) {
+  	angle_fort += 0.02;
+  }
+  if (keyboard.pressed ('L')) {
+  	angle_fort -= 0.02;
+  }
+  if (keyboard.pressed ('K')) {
+      if(angle_barrel1 < Math.PI/6) angle_barrel1 += 0.01;
+  }
+  if (keyboard.pressed ('I')) {
+  		if(angle_barrel1 > -Math.PI/6) angle_barrel1 -= 0.01;
+  }
+  if (keyboard.pressed ('W')) {
+      base_ob.position.x -= 0.8*Math.cos(angle_base);
+      base_ob.position.z += 0.8*Math.sin(angle_base);
+  }
+  if (keyboard.pressed ('S')) {
+  		base_ob.position.x += 0.8*Math.cos(angle_base);
+      base_ob.position.z -= 0.8*Math.sin(angle_base);
+  }
+  light.position.copy(base_ob.localToWorld(new THREE.Vector3(0, 50, 0)));
+  base_ob.rotation.y = angle_base;
+  fort_ob.rotation.y = angle_fort;
+  barrel1_ob.rotation.y = angle_barrel1;
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);  
+}
+
+
+function onWindowResize() {
+
+  var width = window.innerWidth;
+  var height = window.innerHeight;
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(width, height);
+}
+
+
+</script>
+</body>
+
+</html>
