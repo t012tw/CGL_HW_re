@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<style>
+body {
+  overflow: hidden
+}
+</style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/88/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+<script src="https://rawgit.com/mrdoob/three.js/master/examples/js/loaders/MTLLoader.js"></script>
+<script src="https://rawgit.com/mrdoob/three.js/master/examples/js/loaders/OBJLoader.js"></script>
+<script src="allneeds.js"></script>
+<script src='pdc.js'></script>
+<script>
+
+var renderer, camera, controls, scene;
+var table,lamp,pencil;
+var penHolder = new THREE.Object3D(),floor;
+var AmbientLight,roomlight,tablelight;
+var helper,helper2;
+var raycaster = new THREE.Raycaster();
+var pickables = [];
+var mouse = new THREE.Vector2();
+var tt = 1,ll = 1;//set light off
+init();
+animate();
+
+function init() {
+
+  renderer = new THREE.WebGLRenderer();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x888888);
+  document.body.appendChild(renderer.domElement);
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
+  camera.position.set( -70, 120, 40);
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  scene = new THREE.Scene();
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap; // OR: THREE.PCFShadowMap, THREE.PCFSoftShadowMap;
+  document.addEventListener('mousedown', onDocumentMouseDown, false); //add mouse
+  
+  ///////////////////////////////  make button  /////////////////////////////////////////////// 
+  
+  button = new Button(new THREE.Color (0x6d737c), 'table');
+  button.obj.position.set(-32, 43.5, -11);
+  scene.add(button.obj);
+  pickables.push(button.obj);
+
+  button2 = new Button(new THREE.Color (0x6d737c), 'room');
+  scene.add(button2.obj);
+  button2.obj.position.set(-28.5, 43.5, -14.5);
+  pickables.push(button2.obj);
+
+  ///////////////////////////////  build model //////////////////////////////////// 
+  var onProgress = function(xhr) {
+    if (xhr.lengthComputable) {
+      var percentComplete = xhr.loaded / xhr.total * 100;
+      console.log(Math.round(percentComplete, 2) + '% downloaded');
+    }
+  };
+
+  var onError = function(xhr) {};
+
+  var mtlLoader = new THREE.MTLLoader();
+	mtlLoader.setPath('Model/');
+ 	mtlLoader.load('table.mtl', function(materials) {
+	
+    materials.preload();
+
+    var objLoader = new THREE.OBJLoader();
+    objLoader.setMaterials(materials);
+    objLoader.setPath('Model/');
+    objLoader.load('table.obj', function(object) {
+			table =  unitize (object, 80);
+			scene.add (table);
+			//////// MATERIAL ADJUSTMENT for porsche ///////////////
+			// transparent window: double-side fix
+			object.traverse (
+				function(mesh) {
+					if (mesh instanceof THREE.Mesh) {
+						mesh.material.side = THREE.DoubleSide;
+						mesh.castShadow = true;
+						mesh.receiveShadow = true;
+					}
+				});
+    }, onProgress, onError);
+  });
+  var mtlLoader = new THREE.MTLLoader();
+    mtlLoader.setPath('Model/');
+ 	mtlLoader.load('materials.mtl', function(materials) {
+    materials.preload();
+    var objLoader = new THREE.OBJLoader();
+    objLoader.setMaterials(materials);
+	objLoader.setPath('Model/');
+    objLoader.load('model.obj', function(object) {
+			lamp =  unitize (object, 40);
+			lamp.rotation.y = Math.PI/6;
+			lamp.position.set(-30, 38.5, -12);
+			lamp.castShadow = true;
+			lamp.receiveShadow = true;
+			scene.add (lamp);	
+			object.traverse (
+				function(mesh) {
+					if (mesh instanceof THREE.Mesh) {
+						mesh.material.side = THREE.DoubleSide;
+						mesh.castShadow = true;
+						mesh.receiveShadow = true;
+					}
+				});
+    }, onProgress, onError);
+  });
+  var mtlLoader = new THREE.MTLLoader();
+	mtlLoader.setPath('Model/');
+ 	mtlLoader.load('pencil.mtl', function(materials) {
+    materials.preload();
+    var objLoader = new THREE.OBJLoader();
+    objLoader.setMaterials(materials);
+	objLoader.setPath('Model/');
+    objLoader.load('pencil.obj', function(object) {
+			pencil =  unitize (object, 8);
+			pencil.rotation.z = -Math.PI/12;
+			pencil.rotation.x = -Math.PI/12;
+			pencil.position.set(-20, 43.1, 0);
+			pencil.castShadow = true;
+			pencil.receiveShadow = true;
+			scene.add (pencil);	
+			object.traverse (
+				function(mesh) {
+					if (mesh instanceof THREE.Mesh) {
+						mesh.material.side = THREE.DoubleSide;
+						mesh.castShadow = true;
+						mesh.receiveShadow = true;
+					}
+				});
+    }, onProgress, onError);
+  });
+  penHolder = penHoldBuild();
+  penHolder.position.set(-20,45.75,0);
+  floor = floorBuild();
+  scene.add (penHolder,floor);
+  
+  ///////////////////////////////  build light ////////////////////////////////////
+  AmbientLight = new THREE.AmbientLight( 0x919191 );
+  
+  roomlight = new THREE.SpotLight(0xffffff, 0.8);
+  roomlight.position.set(0, 150, 0);
+  roomlight.castShadow = true;
+  roomlight.penumbra = 0.01;
+  roomlight.distance = 100000;
+  roomlight.angle = Math.PI / 6;
+  var target = new THREE.Object3D();
+  target.position.set(0, 0, 0);
+  roomlight.target = target;
+  
+  roomlight.shadow.mapSize.width = 1024;
+  roomlight.shadow.mapSize.height = 1024;
+  roomlight.shadow.camera.near = 20;
+  roomlight.shadow.camera.far = 1000;
+  roomlight.shadow.camera.fov = 100;
+  
+  
+  tablelight = new THREE.SpotLight(0xffffff, 1);
+  tablelight.position.set(-26.5, 75.5, -6);
+  tablelight.castShadow = true;
+  tablelight.penumbra = 0.2;
+  tablelight.distance = 100;
+  tablelight.angle = Math.PI / 6;
+  tablelight.target = penHolder;
+  
+  tablelight.shadow.mapSize.width = 1024;
+  tablelight.shadow.mapSize.height = 1024;
+  tablelight.shadow.camera.near = 10;
+  tablelight.shadow.camera.far = 300;
+  tablelight.shadow.camera.fov = 10;
+  
+  scene.add(AmbientLight, roomlight, tablelight);
+  //scene.add(helper = new THREE.SpotLightHelper(roomlight, 5));
+  //scene.add(helper2 = new THREE.SpotLightHelper(tablelight, 5));
+  
+  //////////////////////////////////////////////////////////////////////////////////////////
+
+  
+  pdcSetRef (1);//set light off
+  pdcSetRef2 (1);
+  window.addEventListener('resize', onWindowResize, false);
+}
+
+function animate() {
+  controls.update();
+  //helper.update();
+  //helper2.update();
+  tt = pdcUpdate (tt);
+  ll = pdcUpdate2 (ll);
+  
+  if(button.on)pdcSetRef (-1);
+  else pdcSetRef (1);
+  if(tt < -0.9 && tt > -1.1) tablelight.intensity = 1.5;//cause tt will float in a range
+  else if(tt > 0.9 && tt < 1.1){
+	tablelight.intensity = 0;
+  }
+  else if(tt < -0.7){
+	tablelight.intensity = 0;
+  }
+  else if(tt > 0.7){
+	tablelight.intensity = 1.5;
+  }
+  
+  
+  if(button2.on)pdcSetRef2 (-1);
+  else pdcSetRef2 (1);
+  if(ll < -0.9 && ll > -1.1) roomlight.intensity = 0.8;
+  else if(ll > 0.8 && ll < 1.1){
+	roomlight.intensity = 0;
+  }
+  else if(ll < -0.7){
+	roomlight.intensity = 0;
+  }
+  else if(ll > 0.7){
+	roomlight.intensity = 0.8;
+  }
+  
+  
+  
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);  
+}
+
+function unitize (object, targetSize) {
+	
+	// find bounding box of 'object'
+	var box3 = new THREE.Box3();
+	box3.setFromObject (object);
+	var size = new THREE.Vector3();
+	size.subVectors (box3.max, box3.min);
+	var center = new THREE.Vector3();
+	center.addVectors(box3.max, box3.min).multiplyScalar (0.5);
+	
+	console.log ('center: ' + center.x + ', '+center.y + ', '+center.z );
+	console.log ('size: ' + size.x + ', ' +  size.y + ', '+size.z );
+	
+	// uniform scaling according to objSize
+	var objSize = findMax (size);
+	var scaleSet = targetSize/objSize;
+				
+	var theObject =  new THREE.Object3D();
+	theObject.add (object);
+	object.scale.set (scaleSet, scaleSet, scaleSet);
+	object.position.set (-center.x*scaleSet, -center.y*scaleSet + size.y/2*scaleSet, -center.z*scaleSet);
+	
+	return theObject;
+	
+	
+	// helper function
+	function findMax(v) {
+		if (v.x > v.y) {
+			return v.x > v.z ? v.x : v.z;
+		} else { // v.y > v.x
+			return v.y > v.z ? v.y : v.z;
+		} 
+	}
+			
+}
+
+
+
+function onWindowResize() {
+
+  var width = window.innerWidth;
+  var height = window.innerHeight;
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(width, height);
+}
+
+
+</script>
+</body>
+
+</html>
