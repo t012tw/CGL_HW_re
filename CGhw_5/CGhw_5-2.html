@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+<style>
+#info {
+  position: absolute;
+  top: 2%;
+  width: 100%;
+  padding: 10px;
+  text-align: center;
+  color: #ffff00
+}
+
+body {
+  overflow: hidden;
+}
+</style>
+
+<body>
+<div id="info">
+  hw6 Basic GLSL<br>
+  Is Life :
+  <input id="islife" type="text" value="(default value)">
+
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/84/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+
+<script id="myVertexShader" type="x-shader/x-vertex">
+uniform vec3 lightpos;  // world coordinate
+varying vec3 eyelightdir;
+varying vec3 eyenormal;
+
+varying vec4 eyepos;
+
+void main() {
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+
+    eyepos = modelViewMatrix * vec4 (position, 1.0);
+    vec4 eyelightpos= viewMatrix * vec4 (lightpos, 1.0);
+    eyelightdir = normalize (eyelightpos.xyz - eyepos.xyz);
+    eyenormal = normalMatrix * normal;
+}
+</script>
+
+<script id="myFragmentShader" type="x-shader/x-fragment">
+varying vec3 eyelightdir;
+varying vec3 eyenormal;
+varying vec4 eyepos;
+
+uniform float opacity;
+
+vec3	coolColor;
+vec3	warmColor;
+float alpha;
+float beta;
+
+void main() {
+    vec3 normalVector = normalize(eyenormal);
+    vec3 lightVector = normalize(eyelightdir);
+    float diffuse = dot(normalVector, lightVector);
+
+    coolColor = vec3(0.749, 0.392, 0.137);
+    warmColor = vec3(0.0, 0.682, 1.0);
+    alpha = 0.2;
+    beta = 0.8;
+
+    vec3 coolColorMod = coolColor + diffuse * alpha;
+    vec3 warmColorMod = warmColor + diffuse * beta;
+    vec3 colorOut = ((1.0 + diffuse)/2.0) * coolColorMod + (1.0-(1.0 + diffuse)/2.0) * warmColorMod;
+
+    gl_FragColor = vec4 (colorOut, opacity);
+}
+</script>
+
+<script>
+class Teapot{ //Teapot Class
+  constructor (number) {
+    this.life = 100.;
+    this.on = true;
+    this.angle = 0;
+    this.number = number;
+    this.obj = this.makeTeapot(number);
+	this.mtl = teapotMaterial;
+  }
+  get isOn() {
+    return this.on;
+  }
+  toggle() {
+    this.on = !this.on;
+    this.update();
+  }
+  getnumber() {
+	   return this.number;
+  }
+  getangle() {
+	   return this.angle;
+  }
+  getlife() {
+	   return this.life;
+  }
+  update () {
+  	if(this.on && this.life > 0){
+  	  this.angle += 0.05;
+  	  this.life  -= 0.4;
+      this.mtl.uniforms.opacity.value = this.life*0.01; //-Q1-  某些會黑黑的
+      teapotMaterial.uniforms.lightpos.value.copy(pointLight.position);
+  	}
+  }
+  makeTeapot(number) {
+    teapotMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        lightpos: {type:'v3', value: new THREE.Vector3(0, 30, 20) },
+    	  opacity: {type: 'f', value: 1.0},
+  	   },
+      vertexShader: document.getElementById('myVertexShader').textContent,
+      fragmentShader: document.getElementById('myFragmentShader').textContent
+    });
+    teapotMaterial.transparent = true //So 重要!!!
+    let model = new THREE.Object3D();
+    var jsonLoader = new THREE.JSONLoader();
+    var url = 'https://raw.githubusercontent.com/jyunming-chen/tutsplus/master/models/teapot.json';
+    jsonLoader.load(url, function(geometry, materials) {
+      //var material = new THREE.MeshFaceMaterial(materials);
+      let jsonModel = new THREE.Mesh(geometry, teapotMaterial);
+      let mesh = unitize (jsonModel, 50);
+	  mesh.number = number;
+	  model.add(mesh);
+    });
+    //model.name = number;
+    return model;
+  }
+}
+
+var scene, renderer, camera;
+var controls;
+var movingTeapot;
+var angle = 0;
+var teapotMaterial;
+var lighthelper;
+var teapots = [], teapotMeshes = [];
+var raycaster;
+var pickables = [];
+var mouse = new THREE.Vector2();
+var number = 0, islife = 0, maxdead = 0;
+
+init();
+animate();
+
+function init() {
+  var width = window.innerWidth;
+  var height = window.innerHeight;
+
+  renderer = new THREE.WebGLRenderer({
+    antialias: true
+  });
+  renderer.setSize(width, height);
+  renderer.setClearColor(0x888888);
+  document.body.appendChild(renderer.domElement);
+
+  scene = new THREE.Scene();
+
+  camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 10000);
+  camera.position.set(0,300,0);
+  camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+  var gridXZ = new THREE.GridHelper(200, 20, 'red', 'white');
+  scene.add(gridXZ);
+
+  pointLight = new THREE.PointLight(0xefc545);
+  pointLight.position.set(200, 300, 200);
+  scene.add(pointLight);
+  lighthelper = new THREE.Mesh(new THREE.SphereGeometry(5, 32, 32), new THREE.MeshBasicMaterial({
+    color: 0xefc545
+  }));
+  scene.add(lighthelper);
+  var ambientLight = new THREE.AmbientLight(0x111111);
+  scene.add(ambientLight);
+
+  /////////////////////////////////////////////////////////////////
+
+
+  /////////////////////////////////////////////////////////////////
+  mesh = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0.,
+    visible: true
+  }));
+  plane = new THREE.Object3D();
+  plane.add(mesh);
+  plane.number = number;
+  number++;
+  scene.add(plane);
+  plane.rotation.x = -Math.PI / 2;
+  pickables.push(plane);
+  raycaster = new THREE.Raycaster();
+  document.addEventListener('mousedown', onDocumentMouseDown, false);
+}
+
+function onDocumentMouseDown(event) {
+
+  // PICKING DETAILS:
+  // convert mouse.xy = [-1,1]^2 (NDC)
+  // unproject (mouse.xy, 1) to a point on the far plane (in world coordinate)
+  // set raycaster (origin, direction)
+  // find intersection objects, (closest first)
+  // each record as
+  // [ { distance, point, face, faceIndex, object }, ... ]
+
+  event.preventDefault();
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+  // find intersections
+  raycaster.setFromCamera(mouse, camera);
+  var intersects = raycaster.intersectObjects(pickables, true);
+
+   /////////////////////////////////////////////////////////////////
+  if (intersects.length > 0) {//有點到東西
+	if(intersects[0].object.parent.number === 0){
+		let picked = intersects[0].object.parent.number;//點到的東西 
+		console.log(picked);
+	   ////////////////////////// 空地新建teapot ///////////////////////	  
+		if(picked === 0){
+		  let teapot = new Teapot(number);
+		  teapots.push(teapot);
+		  scene.add(teapot.obj);
+		  teapot.obj.position.copy(intersects[0].point);
+		  pickables.push(teapots[teapots.length - 1].obj);
+		  number++;
+		  islife++;
+		}
+	}
+   ////////////////////////// 點到teapot ///////////////////////////	
+	else{
+		let picked = intersects[0].object.parent.number;//點到的東西
+		console.log(picked);
+		for (let i = 0; i < teapots.length + 1; i++) {//切換teapot狀態
+			if(i === picked && i > 0) {
+				teapots[i-1].toggle();
+			}
+		}
+	}
+  }
+}
+
+function animate() {
+  angle += 0.01
+
+  // update the uniform variable
+  teapots.forEach (function (teapot) {
+    	teapot.update();
+  })
+  var dead = 0;
+  for (let i = 0; i < teapots.length; i++) {//更新teapot旋轉和透明度
+  	if(teapots[i]) {
+		teapots[i].obj.rotation.y = teapots[i].getangle();
+		if(teapots[i].life <= 0){//判斷生命值歸零
+			if(teapots[i]){
+			  let j = teapots[i].number;
+			  for(j;j < pickables.length;j++){
+				pickables[j] = pickables[j + 1];
+			  }
+			  delete pickables[j];
+			  pickables.length--;
+			  scene.remove(teapots[i].obj);
+			  delete teapots[i];
+			  islife --;
+			  console.log(pickables);
+			}
+		}
+	}
+  }
+  
+  pointLight.position.set(60 * Math.cos(angle), 80, 60 * Math.sin(angle));
+
+  lighthelper.position.copy(pointLight.position);
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+  $('#islife').val(islife);
+}
+
+////////////////////////////////////////
+// create an Object3D of the given object
+// so that it is centered at +Y axis
+//
+function unitize (object, targetSize) {
+
+	// find bounding box of 'object'
+	var box3 = new THREE.Box3();
+	box3.setFromObject (object);
+	var size = new THREE.Vector3();
+	size.subVectors (box3.max, box3.min);
+	var center = new THREE.Vector3();
+	center.addVectors(box3.max, box3.min).multiplyScalar (0.5);
+
+	console.log ('center: ' + center.x + ', '+center.y + ', '+center.z );
+	console.log ('size: ' + size.x + ', ' +  size.y + ', '+size.z );
+
+	// uniform scaling according to objSize
+	var objSize = findMax (size);
+	var scaleSet = targetSize/objSize;
+
+	var theObject =  new THREE.Object3D();
+	theObject.add (object);
+	object.scale.set (scaleSet, scaleSet, scaleSet);
+	object.position.set (-center.x*scaleSet, -center.y*scaleSet + size.y/2*scaleSet, -center.z*scaleSet);
+
+	return theObject;
+	// helper function
+	function findMax(v) {
+		if (v.x > v.y) {
+			return v.x > v.z ? v.x : v.z;
+		} else { // v.y > v.x
+			return v.y > v.z ? v.y : v.z;
+		}
+	}
+
+}
+
+</script>
+</body>
+
+</html>
