@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+<style>
+#info {
+  position: absolute;
+  top: 2%;
+  width: 100%;
+  padding: 10px;
+  text-align: center;
+  color: #ffff00
+}
+
+body {
+  overflow: hidden;
+}
+</style>
+
+<body> 
+<div id="info">
+  hw6 Basic GLSL <br>
+  
+  <select id='coords'>
+  <option value="obj" selected>Object Coordinate</option>
+  <option value="world">World Coordinate</option>
+  <option value="eye">Eye Coordinate</option>
+  <option value="gooch">Gooch shading</option>
+  </select>
+  
+  <select id='shading'>
+  <option value='perVertex' selected> Per Vertex</option>
+  <option value='perPixel'> Per Pixel </option>
+  </select>
+
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/84/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+
+<script id="myVertexShader" type="x-shader/x-vertex">
+  uniform int shading;
+  uniform int coordinate;
+  varying vec3 color;
+  varying vec3 position_p;
+  varying vec4 worldpos_p;
+  varying vec4 eyepos;
+  varying vec4 eyepos_p;
+  uniform vec3 lightpos;
+  varying vec3 lightdir;
+  varying vec3 eyenorm;
+  varying vec3 norm;
+  
+  void perVertexShading(vec3 objpos, vec3 worldpos, vec3 eyepos, vec3 lightdir,vec3 eyenorm) {
+    if (coordinate == 0) {
+  	  if (objpos.x > 0.0) 
+    	color = vec3 (1,1,1);
+      else
+    	color = vec3 (0,0,0);
+    } else if (coordinate == 1) {
+  	  if (worldpos.x > 0.0) 
+    	color = vec3 (1,1,1);
+      else
+    	color = vec3 (0,0,0);    	
+    } else if (coordinate == 2) {
+  	  if (eyepos.x > 0.0) 
+    	color = vec3 (1,1,1);
+      else
+    	color = vec3 (0,0,0);    	
+    }  else if (coordinate == 3) {
+	  float dd = dot(normalize(lightdir),normalize(norm));//l*n
+	  vec3 cool = vec3 (0.08,0.24,0.51);//RGB(20, 62, 13)
+	  vec3 warm = vec3 (0.94,0.77,0.27);//RGB(239, 197, 69)
+	  vec3 cd = cool + 0.2 * dd;
+	  vec3 wd = warm + 0.2 * dd;
+	  color = (1. + dd)/2. * cd + (1. - (1. + dd)/2.) * wd;
+    }
+	
+  }
+  
+  void main() {
+	gl_Position = projectionMatrix* modelViewMatrix * vec4( position, 1.0);
+    vec4 worldpos = modelMatrix * vec4 (position, 1.0);
+	vec4 eyepos = modelViewMatrix * vec4 (position, 1.0);
+    vec4 lighteye = viewMatrix * vec4 (lightpos, 1.0);    
+	
+	position_p = position;
+	worldpos_p = worldpos;
+	eyepos_p = eyepos;
+	norm = normal;
+	lightdir = lighteye.xyz - eyepos.xyz; //From the model
+    eyenorm = normalMatrix * normal;
+  	if (shading == 0)  // per-vertex shading
+    	perVertexShading(position, worldpos.xyz, eyepos.xyz, lightdir, eyenorm);
+  }
+</script>
+
+<script id="myFragmentShader" type="x-shader/x-fragment">
+  uniform int shading; 
+  uniform int coordinate; 
+  varying vec3 color; 
+  vec3 color_p;
+  varying vec3 lightdir;
+  varying vec3 eyenorm;
+  varying vec3 norm;
+  
+  varying vec3 position_p;
+  varying vec4 worldpos_p;
+  varying vec4 eyepos_p;
+  
+  void perPixelShading(vec3 objpos, vec3 worldpos, vec3 eyepos, vec3 lightdir, vec3 eyenorm) {
+  //Pixel shading
+  if (coordinate == 0) {
+	if (objpos.x > 0.0) color_p = vec3 (1,1,1);
+	  else color_p = vec3 (0,0,0);
+	}
+    else if (coordinate == 1) {
+	  if (worldpos.x > 0.0) color_p = vec3 (1,1,1);
+	  else color_p = vec3 (0,0,0);
+	}
+	else if (coordinate == 2) {
+	  if (eyepos.x > 0.0) color_p = vec3 (1,1,1);
+	  else color_p = vec3 (0,0,0);
+	}
+	else if (coordinate == 3) {
+	
+	  float dd = dot(normalize(lightdir),normalize(norm));//l*n
+	  vec3 cool = vec3 (0.08,0.24,0.51);//RGB(20, 62, 13)
+	  vec3 warm = vec3 (0.94,0.77,0.27);//RGB(239, 197, 69)
+	  vec3 cd = cool + 0.2 * dd;
+	  vec3 wd = warm + 0.2 * dd;
+	  color_p = (1. + dd)/2. * cd + (1. - (1. + dd)/2.) * wd;
+	  gl_FragColor = vec4 (color_p , 1.0);
+	}
+  }
+
+  void main() {
+    if(shading == 1){
+  	// per-pixel shading
+	  perPixelShading(position_p, worldpos_p.xyz, eyepos_p.xyz, lightdir, eyenorm);
+	  if(coordinate != 3)gl_FragColor = vec4 (color_p, 1.0);
+    }
+    else gl_FragColor = vec4 (color, 1.0);
+  }
+
+</script>
+
+<script>
+
+$('#coords').change( function() {
+	console.log ( $(this).val() );
+	let objType = $(this).val();
+	if (objType === 'obj') {
+		teapotMaterial.uniforms.coordinate.value = 0;
+		scene.remove(lighthelper);
+	} else if (objType === 'world') {
+		teapotMaterial.uniforms.coordinate.value = 1;
+		scene.remove(lighthelper);
+	} else if (objType === 'eye') {
+		teapotMaterial.uniforms.coordinate.value = 2;
+		scene.remove(lighthelper);
+	} else if (objType === 'gooch') {
+		teapotMaterial.uniforms.coordinate.value = 3;
+		scene.add(lighthelper);
+	}
+});
+
+$('#shading').change( function() {
+	console.log ( $(this).val() );
+	let objType = $(this).val();
+	if (objType === 'perVertex') {
+		teapotMaterial.uniforms.shading.value = 0;
+	} else if (objType === 'perPixel') {
+		teapotMaterial.uniforms.shading.value = 1;
+	}
+});
+
+var scene, renderer, camera;
+var controls;
+var movingTeapot;
+var angle = 0;
+var teapotMaterial;
+var lighthelper;
+
+
+init();
+animate();
+
+function init() {
+  var width = window.innerWidth;
+  var height = window.innerHeight;
+
+  renderer = new THREE.WebGLRenderer({
+    antialias: true
+  });
+  renderer.setSize(width, height);
+  renderer.setClearColor(0x888888);
+  document.body.appendChild(renderer.domElement);
+
+  scene = new THREE.Scene();
+
+  camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 10000);
+  camera.position.z = 200;
+  camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+  var gridXZ = new THREE.GridHelper(200, 20, 'red', 'white');
+  scene.add(gridXZ);
+
+  pointLight = new THREE.PointLight(0xffffff);
+  pointLight.position.set(200, 300, 200);
+  scene.add(pointLight);
+  lighthelper = new THREE.Mesh(new THREE.SphereGeometry(5, 32, 32), new THREE.MeshBasicMaterial({
+    color: 0xefc545
+  }));
+  var ambientLight = new THREE.AmbientLight(0x111111);
+  scene.add(ambientLight);
+
+  /////////////////////////////////////////////////////////////////
+
+
+  teapotMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      lightpos: {type:'v3', value: new THREE.Vector3(0, 30, 20) },
+	  shading: {type:'i', value: 0},
+      coordinate: {type:'i', value: 0},
+	},
+    vertexShader: document.getElementById('myVertexShader').textContent,
+    fragmentShader: document.getElementById('myFragmentShader').textContent
+  });
+
+  var jsonLoader = new THREE.JSONLoader();
+  
+  //var url = "teapot.json";
+  var url = 'https://raw.githubusercontent.com/jyunming-chen/tutsplus/master/models/teapot.json';
+  jsonLoader.load(url, function(geometry, materials) {
+    //var material = new THREE.MeshFaceMaterial(materials);
+    jsonModel = new THREE.Mesh(geometry, new THREE.MeshPhongMaterial());
+    
+    let theTeapot = unitize (jsonModel, 50);
+    scene.add(theTeapot);
+
+   jsonModel = new THREE.Mesh(geometry, teapotMaterial);
+     movingTeapot = unitize (jsonModel, 50);
+    
+    movingTeapot.position.set(70, 0, 0);
+    scene.add(movingTeapot);
+
+  });
+  
+}
+
+////////////////////////////////////////
+// create an Object3D of the given object
+// so that it is centered at +Y axis
+// 
+function unitize (object, targetSize) {  
+	
+	// find bounding box of 'object'
+	var box3 = new THREE.Box3();
+	box3.setFromObject (object);
+	var size = new THREE.Vector3();
+	size.subVectors (box3.max, box3.min);
+	var center = new THREE.Vector3();
+	center.addVectors(box3.max, box3.min).multiplyScalar (0.5);
+	
+	console.log ('center: ' + center.x + ', '+center.y + ', '+center.z );
+	console.log ('size: ' + size.x + ', ' +  size.y + ', '+size.z );
+	
+	// uniform scaling according to objSize
+	var objSize = findMax (size);
+	var scaleSet = targetSize/objSize;
+				
+	var theObject =  new THREE.Object3D();
+	theObject.add (object);
+	object.scale.set (scaleSet, scaleSet, scaleSet);
+	object.position.set (-center.x*scaleSet, -center.y*scaleSet + size.y/2*scaleSet, -center.z*scaleSet);
+	
+	return theObject;
+	
+	
+	// helper function
+	function findMax(v) {
+		if (v.x > v.y) {
+			return v.x > v.z ? v.x : v.z;
+		} else { // v.y > v.x
+			return v.y > v.z ? v.y : v.z;
+		} 
+	}
+			
+}
+
+function animate() {
+  angle += 0.01;
+  /*if(teapotMaterial.uniforms.coordinate.value === 3){
+	scene.add(lighthelper);
+  }else scene.remove(lighthelper);*/
+  // update the uniform variable
+  
+  if (movingTeapot !== undefined) {
+	movingTeapot.position.set (70*Math.cos(-angle), 0, 70*Math.sin(-angle));
+  }
+  pointLight.position.set(60 * Math.cos(angle), 80, 60 * Math.sin(angle));
+  teapotMaterial.uniforms.lightpos.value.copy(pointLight.position);
+  lighthelper.position.copy(pointLight.position);
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+
+}
+
+</script>
+</body>
+
+</html>
