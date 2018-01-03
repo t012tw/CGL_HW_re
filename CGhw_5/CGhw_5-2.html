@@ -30,50 +30,60 @@ body {
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 
 <script id="myVertexShader" type="x-shader/x-vertex">
-uniform vec3 lightpos;  // world coordinate
-varying vec3 eyelightdir;
-varying vec3 eyenormal;
-
-varying vec4 eyepos;
-
-void main() {
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-
-    eyepos = modelViewMatrix * vec4 (position, 1.0);
-    vec4 eyelightpos= viewMatrix * vec4 (lightpos, 1.0);
-    eyelightdir = normalize (eyelightpos.xyz - eyepos.xyz);
-    eyenormal = normalMatrix * normal;
-}
+  varying vec3 color;
+  varying vec4 eyepos;
+  uniform vec3 lightpos;
+  varying vec3 lightdir;
+  varying vec3 eyenorm;
+  void perVertexShading(vec3 lightdir,vec3 eyenorm) {
+    
+	  float nn = dot (normalize(lightdir), normalize(eyenorm));//H = V + L
+	  if (nn > 0.8) nn= 1.0;
+	  else if (nn > 0.6)nn = 0.6;
+	  else if (nn > 0.4)nn = 0.4;
+	  else nn = 0.2;
+	  color = vec3 (nn*0.937,nn*0.772,nn*0.25);//RGB(239, 197, 69)
+  }
+  
+  void main() {
+	gl_Position = projectionMatrix* modelViewMatrix * vec4( position, 1.0);
+    vec4 worldpos = modelMatrix * vec4 (position, 1.0);
+	vec4 eyepos = modelViewMatrix * vec4 (position, 1.0);
+    vec4 lighteye = viewMatrix * vec4 (lightpos, 1.0);    
+	
+	lightdir = lighteye.xyz - eyepos.xyz; //From the model
+    eyenorm = normalMatrix * normal;
+    perVertexShading(lightdir, eyenorm);
+  }
 </script>
 
 <script id="myFragmentShader" type="x-shader/x-fragment">
-varying vec3 eyelightdir;
-varying vec3 eyenormal;
-varying vec4 eyepos;
+  uniform int shading; 
+  uniform int coordinate; 
+  varying vec3 color; 
+  vec3 color_p;
+  varying vec3 lightdir;
+  varying vec3 eyenorm;  
+  
+  varying vec3 position_p;
+  varying vec4 worldpos_p;
+  varying vec4 eyepos_p;
+  uniform float opacity;
+  
+  void perPixelShading(vec3 lightdir, vec3 eyenorm) {
+  //Pixel shading
+	float nn = dot (normalize(lightdir), normalize(eyenorm));//H = V + L
+	if (nn > 0.8) nn= 1.0;
+	else if (nn > 0.6)nn = 0.6;
+	else if (nn > 0.4)nn = 0.4;
+	else nn = 0.2;
+	gl_FragColor = vec4 (nn*0.937,nn*0.772,nn*0.25, opacity);//RGB(239, 197, 69)
+  }
 
-uniform float opacity;
-
-vec3	coolColor;
-vec3	warmColor;
-float alpha;
-float beta;
-
-void main() {
-    vec3 normalVector = normalize(eyenormal);
-    vec3 lightVector = normalize(eyelightdir);
-    float diffuse = dot(normalVector, lightVector);
-
-    coolColor = vec3(0.749, 0.392, 0.137);
-    warmColor = vec3(0.0, 0.682, 1.0);
-    alpha = 0.2;
-    beta = 0.8;
-
-    vec3 coolColorMod = coolColor + diffuse * alpha;
-    vec3 warmColorMod = warmColor + diffuse * beta;
-    vec3 colorOut = ((1.0 + diffuse)/2.0) * coolColorMod + (1.0-(1.0 + diffuse)/2.0) * warmColorMod;
-
-    gl_FragColor = vec4 (colorOut, opacity);
-}
+  void main() {
+  	// per-pixel shading
+	  perPixelShading(lightdir, eyenorm);
+  }
 </script>
 
 <script>
@@ -106,9 +116,9 @@ class Teapot{ //Teapot Class
   	if(this.on && this.life > 0){
   	  this.angle += 0.05;
   	  this.life  -= 0.4;
-      this.mtl.uniforms.opacity.value = this.life*0.01; //-Q1-  某些會黑黑的
-      teapotMaterial.uniforms.lightpos.value.copy(pointLight.position);
+      this.mtl.uniforms.opacity.value = this.life*0.01;
   	}
+	this.mtl.uniforms.lightpos.value.copy(pointLight.position);
   }
   makeTeapot(number) {
     teapotMaterial = new THREE.ShaderMaterial({
@@ -183,9 +193,6 @@ function init() {
   scene.add(ambientLight);
 
   /////////////////////////////////////////////////////////////////
-
-
-  /////////////////////////////////////////////////////////////////
   mesh = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshBasicMaterial({
     transparent: true,
     opacity: 0.,
@@ -254,10 +261,9 @@ function animate() {
 
   // update the uniform variable
   teapots.forEach (function (teapot) {
-    	teapot.update();
+    	if(teapot) teapot.update();
   })
-  var dead = 0;
-  for (let i = 0; i < teapots.length; i++) {//更新teapot旋轉和透明度
+  for (let i = 0; i < teapots.length; i++) {//更新teapot旋轉
   	if(teapots[i]) {
 		teapots[i].obj.rotation.y = teapots[i].getangle();
 		if(teapots[i].life <= 0){//判斷生命值歸零
